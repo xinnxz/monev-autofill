@@ -51,6 +51,7 @@ Kamu: cek isi → "Tambahkan lokasi" → centang pernyataan → Simpan dan Kirim
 | **Balasan Telegram** | Disarankan | Jawabanmu atas pertanyaan jam 21.00. Untuk meeting, diskusi, belajar, WFO. |
 | **Clone lokal** | Opsional | Commit yang belum di-push (`REPOS`, `GIT_AUTHOR`). |
 | **Dokumen** | Opsional | Judul file `.md` di `NOTES_DIRS` yang diubah hari itu. |
+| **Latar proyek** (`konteks.md`) | Disarankan | Ringkasan PRD/docs: peran, fitur, istilah, cara kerja tim. Hanya latar supaya tulisan nyambung, **tidak** dihitung sebagai aktivitas. |
 | **Catatan manual** | Opsional | `catatan/YYYY-MM-DD.md` |
 | **Slack** | Opsional | Pesanmu hari itu (standup, thread tim). Butuh Slack app dengan scope `search:read` yang **disetujui admin workspace**. Jangan mengambil token dari browser. |
 
@@ -92,6 +93,16 @@ notepad .env
 ```
 
 Isi `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GITHUB_USER`, dan `ROLE` (posisi magangmu). Sisanya opsional.
+
+```powershell
+copy konteks.example.md konteks.md
+```
+
+```powershell
+notepad konteks.md
+```
+
+Isi latar proyekmu (peran, fitur, istilah). Cukup sekali, perbarui kalau pindah fitur.
 
 **Tes satu per satu:**
 
@@ -189,4 +200,4 @@ scripts/register-task.ps1   jadwal Windows Task Scheduler
 
 ## Untuk teman
 
-Setiap orang meng-clone sendiri, mengisi `.env` sendiri (Gemini key, bot Telegram sendiri, username GitHub sendiri), dan login dengan akunnya sendiri. **Jangan berbagi `.env` atau folder `.profile/`**, karena keduanya setara dengan akses ke akunmu.
+Setiap orang meng-clone sendiri, mengisi `.env` dan `konteks.md` sendiri (Gemini key, bot Telegram sendiri, username GitHub sendiri), dan login dengan akunnya sendiri. **Jangan berbagi `.env` atau folder `.profile/`**, karena keduanya setara dengan akses ke akunmu.

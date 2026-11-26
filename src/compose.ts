@@ -1,5 +1,8 @@
 import { GoogleGenAI, type Content } from "@google/genai";
+import fs from "node:fs";
+import path from "node:path";
 import { z } from "zod";
+import { ROOT } from "./config.js";
 import type { Activity } from "./collect.js";
 
 export const MIN_CHARS = 100;
@@ -11,8 +14,22 @@ export const LogbookSchema = z.object({
 });
 export type Logbook = z.infer<typeof LogbookSchema>;
 
-const SYSTEM = `Kamu menyusun logbook harian program magang MagangHub Kemnaker untuk seorang peserta magang dengan posisi ${process.env.ROLE?.trim() || "Software Engineer"}.
+/** File latar proyek (opsional): membantu memahami istilah, BUKAN sumber aktivitas. */
+function projectContext(): string {
+  const file = path.resolve(ROOT, process.env.CONTEXT_FILE?.trim() || "konteks.md");
+  return fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim().slice(0, 12_000) : "";
+}
 
+const systemPrompt = () => {
+  const ctx = projectContext();
+  return `Kamu menyusun logbook harian program magang MagangHub Kemnaker untuk seorang peserta magang dengan posisi ${process.env.ROLE?.trim() || "Software Engineer"}.
+${ctx ? `
+<latar_proyek>
+${ctx}
+</latar_proyek>
+
+Latar proyek di atas HANYA untuk memahami konteks: istilah, nama fitur, peran tim, dan tujuan pekerjaan. Pakai untuk menjelaskan MENGAPA aktivitas hari itu penting dan menulis pembelajaran yang lebih bermakna. Jangan pernah menulis isi latar proyek sebagai kegiatan yang dikerjakan hari itu.
+` : ""}
 Aturan:
 - Tulis HANYA berdasarkan data aktivitas yang diberikan. Jangan menambah kegiatan, meeting, atau hasil yang tidak ada di data.
 - Bahasa Indonesia baku yang wajar, kalimat aktif tanpa subjek ("Mengerjakan...", "Mempelajari..."), satu paragraf per kolom.
@@ -21,6 +38,7 @@ Aturan:
 - uraian_aktivitas: apa yang dikerjakan hari itu.
 - pembelajaran: hal yang dipelajari dari pekerjaan itu (teknik, arsitektur, proses tim).
 - kendala: hambatan yang benar-benar terlihat di data (review yang harus diperbaiki, konflik merge, spec yang belum jelas, dsb). Kalau data tidak menunjukkan hambatan, tulis bagian pekerjaan yang paling menantang dan bagaimana menanganinya; jangan mengarang masalah.`;
+};
 
 function render(a: Activity): string {
   const parts = [`Tanggal: ${a.date}`];
@@ -59,7 +77,7 @@ export async function compose(activity: Activity): Promise<Logbook> {
             model,
             contents,
             config: {
-              systemInstruction: SYSTEM,
+              systemInstruction: systemPrompt(),
               responseMimeType: "application/json",
               responseJsonSchema: z.toJSONSchema(LogbookSchema),
               temperature: 0.4,
