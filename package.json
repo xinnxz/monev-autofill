@@ -1,0 +1,28 @@
+{
+  "name": "monev-autofill",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Menyiapkan logbook harian MagangHub (monev) dari aktivitas asli, lalu menunggu kamu meninjau dan submit.",
+  "type": "module",
+  "scripts": {
+    "login": "tsx src/login.ts",
+    "ask": "tsx src/ask.ts",
+    "inspect": "tsx src/inspect.ts",
+    "collect": "tsx src/main.ts --collect-only",
+    "draft": "tsx src/main.ts --draft-only",
+    "start": "tsx src/main.ts",
+    "test:notify": "tsx src/main.ts --test-notify",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^3.6.1",
+    "dotenv": "^16.4.5",
+    "playwright": "^1.49.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
