@@ -43,6 +43,18 @@ async function main() {
     return;
   }
 
+  // Hari yang tipis (misal hanya satu merge, tanpa commit atau balasan) belum cukup untuk 3 kolom
+  // tanpa mengarang. Minta cerita singkat dulu; run 22.30 menyusun isinya kalau kamu membalas.
+  const thin = !activity.commits.length && !activity.replies.length && !activity.slack.length &&
+    !activity.manual.trim() && activity.github.length <= 1;
+  if (thin && !isEmpty(activity) && !late) {
+    await sendTelegram(`🗓️ Monev ${date}: yang tercatat di GitHub hari ini baru sedikit.\n\n` +
+      activity.github.map((g) => `• ${g}`).join("\n") + `\n\n` +
+      `Balas pesan ini dengan kegiatanmu yang lain hari ini (meeting, belajar, diskusi, review, WFO) sebelum 22.30, ` +
+      `nanti isinya dikirim ke sini. Balas "izin" atau "sakit" kalau tidak masuk.`);
+    return;
+  }
+
   if (isEmpty(activity)) {
     await sendTelegram(`⚠️ Monev ${date}: belum ada aktivitas yang tercatat di GitHub hari ini.\n\n` +
       `Balas pesan ini dengan kegiatanmu hari ini (meeting, belajar, diskusi, WFO) sebelum 22.30, ` +

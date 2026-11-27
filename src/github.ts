@@ -100,7 +100,7 @@ export async function githubActivity(date: string): Promise<GithubActivity> {
           break;
         }
         case "PullRequestEvent": {
-          const what = p.action === "closed" ? (p.pull_request?.merged ? "Merge" : "Menutup") :
+          const what = p.action === "merged" ? "Merge" : p.action === "closed" ? (p.pull_request?.merged ? "Merge" : "Menutup") :
             p.action === "opened" ? "Membuka" : p.action === "reopened" ? "Membuka ulang" : null;
           if (what) out.items.push(`${what} PR ${await prTitle(repo, p.number ?? p.pull_request?.number)}`);
           break;
