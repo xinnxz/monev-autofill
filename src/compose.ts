@@ -20,6 +20,15 @@ function projectContext(): string {
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8").trim().slice(0, 12_000) : "";
 }
 
+/** Panjang isi per kolom, diatur lewat LENGTH di .env: pendek | sedang | panjang. */
+function lengthRule(): string {
+  switch ((process.env.LENGTH ?? "sedang").trim().toLowerCase()) {
+    case "pendek": return "tiap kolom sekitar 120 sampai 250 karakter, cukup 2–3 kalimat, pilih yang paling penting.";
+    case "panjang": return "tiap kolom sekitar 500 sampai 900 karakter, 5–8 kalimat, uraikan tiap aktivitas, apa yang dipelajari, dan bagaimana kendalanya ditangani.";
+    default: return "tiap kolom sekitar 300 sampai 500 karakter, 3–5 kalimat, sebutkan beberapa aktivitas utama dengan sedikit detail.";
+  }
+}
+
 const systemPrompt = () => {
   const ctx = projectContext();
   return `Kamu menyusun logbook harian program magang MagangHub Kemnaker untuk seorang peserta magang dengan posisi ${process.env.ROLE?.trim() || "Software Engineer"}.
@@ -34,7 +43,7 @@ Aturan:
 - Tulis HANYA berdasarkan data aktivitas yang diberikan. Jangan menambah kegiatan, meeting, atau hasil yang tidak ada di data.
 - Bahasa santai tapi sopan, seperti catatan harian biasa, tidak kaku dan tidak terlalu formal. Kalimat aktif tanpa subjek ("Ngerjain...", "Belajar..." atau "Mengerjakan..." boleh), satu paragraf pendek per kolom.
 - Ubah istilah commit yang terlalu teknis menjadi kalimat yang bisa dipahami mentor non-teknis, tapi tetap sebut nama fitur atau tiket.
-- Singkat saja: tiap kolom sekitar 120 sampai 250 karakter, cukup 2–3 kalimat. Tidak perlu menyebut semua detail, pilih yang paling penting. Minimal ${MIN_CHARS} karakter adalah syarat portal.
+- Panjang: ${lengthRule()} Minimal ${MIN_CHARS} karakter adalah syarat portal. Lebih panjang hanya boleh dengan detail yang memang ada di data, bukan kalimat pengisi.
 - uraian_aktivitas: apa yang dikerjakan hari itu.
 - pembelajaran: hal yang dipelajari dari pekerjaan itu (teknik, arsitektur, proses tim).
 - kendala: hambatan yang benar-benar terlihat di data (review yang harus diperbaiki, konflik merge, spec yang belum jelas, dsb). Kalau data tidak menunjukkan hambatan, tulis bagian pekerjaan yang paling menantang dan bagaimana menanganinya; jangan mengarang masalah.`;
