@@ -28,25 +28,43 @@ const api = async <T>(method: string, body: unknown): Promise<T> => {
 const wibDate = (unix: number) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(unix * 1000));
 
+type Update = {
+  callback_query?: { id: string; data?: string; message?: { message_id: number; chat: { id: number }; date: number } };
+  message?: { chat: { id: number }; date: number; text?: string };
+};
+
+const doneText = (d: string) =>
+  `✅ <b>Monev ${htmlEscape(d)}</b>
+<code>status : selesai, ditandai ${new Intl.DateTimeFormat("id-ID", { timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date())} WIB</code>
+
+Bot diam sampai besok.`;
+
+/** Tandai tap "Sudah": jawab tombolnya dan ubah pesan jadi status selesai. */
+async function acknowledge(cb: NonNullable<Update["callback_query"]>) {
+  await api("answerCallbackQuery", { callback_query_id: cb.id, text: "Sip, dicatat ✅" }).catch(() => {});
+  if (cb.message) {
+    await api("editMessageText", {
+      chat_id: chatId, message_id: cb.message.message_id, text: doneText(date), parse_mode: "HTML",
+    }).catch(() => {});
+  }
+}
+
 /** Sudah ditandai selesai hari ini? (tap tombol atau balasan teks "sudah"/"done"). */
 async function alreadyDone(): Promise<boolean> {
   // Antrean sengaja tidak dikonfirmasi supaya tetap terbaca oleh run berikutnya (Telegram menyimpannya ±24 jam).
-  const updates = await api<{
-    callback_query?: { id: string; data?: string; message?: { chat: { id: number }; date: number } };
-    message?: { chat: { id: number }; date: number; text?: string };
-  }[]>("getUpdates", { allowed_updates: ["message", "callback_query"] });
-
+  const updates = await api<Update[]>("getUpdates", { allowed_updates: ["message", "callback_query"] });
+  let done = false;
   for (const u of updates) {
     const cb = u.callback_query;
     if (cb?.data === `remind:${date}:done` && String(cb.message?.chat.id) === chatId) {
-      await api("answerCallbackQuery", { callback_query_id: cb.id, text: "Sip, dicatat ✅" }).catch(() => {});
-      return true;
+      await acknowledge(cb);
+      done = true;
     }
     const m = u.message;
     if (m?.text && String(m.chat.id) === chatId && wibDate(m.date) === date &&
-        /^(sudah|udah|done|beres|ok sudah)\b/i.test(m.text.trim())) return true;
+        /^(sudah|udah|done|beres|ok sudah)\b/i.test(m.text.trim())) done = true;
   }
-  return false;
+  return done;
 }
 
 const MESSAGES = [
@@ -74,6 +92,14 @@ async function main() {
     },
   });
   console.log(`Pengingat level ${level} terkirim.`);
+
+  // Tunggu sebentar supaya tap "Sudah" langsung dijawab (bot tidak menyala terus).
+  const waitMs = Number(process.env.REMIND_WAIT_MIN ?? 5) * 60_000;
+  const until = Date.now() + waitMs;
+  while (Date.now() < until) {
+    await new Promise((r) => setTimeout(r, 3000));
+    if (await alreadyDone()) return console.log("Ditandai selesai.");
+  }
 }
 
 main().catch((err) => { console.error((err as Error).message); process.exitCode = 1; });
