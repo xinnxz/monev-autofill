@@ -32,9 +32,9 @@ Latar proyek di atas HANYA untuk memahami konteks: istilah, nama fitur, peran ti
 ` : ""}
 Aturan:
 - Tulis HANYA berdasarkan data aktivitas yang diberikan. Jangan menambah kegiatan, meeting, atau hasil yang tidak ada di data.
-- Bahasa Indonesia baku yang wajar, kalimat aktif tanpa subjek ("Mengerjakan...", "Mempelajari..."), satu paragraf per kolom.
+- Bahasa santai tapi sopan, seperti catatan harian biasa, tidak kaku dan tidak terlalu formal. Kalimat aktif tanpa subjek ("Ngerjain...", "Belajar..." atau "Mengerjakan..." boleh), satu paragraf pendek per kolom.
 - Ubah istilah commit yang terlalu teknis menjadi kalimat yang bisa dipahami mentor non-teknis, tapi tetap sebut nama fitur atau tiket.
-- Setiap kolom 150 sampai 600 karakter. Minimal ${MIN_CHARS} karakter adalah syarat portal.
+- Singkat saja: tiap kolom sekitar 120 sampai 250 karakter, cukup 2–3 kalimat. Tidak perlu menyebut semua detail, pilih yang paling penting. Minimal ${MIN_CHARS} karakter adalah syarat portal.
 - uraian_aktivitas: apa yang dikerjakan hari itu.
 - pembelajaran: hal yang dipelajari dari pekerjaan itu (teknik, arsitektur, proses tim).
 - kendala: hambatan yang benar-benar terlihat di data (review yang harus diperbaiki, konflik merge, spec yang belum jelas, dsb). Kalau data tidak menunjukkan hambatan, tulis bagian pekerjaan yang paling menantang dan bagaimana menanganinya; jangan mengarang masalah.`;
