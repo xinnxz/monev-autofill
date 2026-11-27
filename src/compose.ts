@@ -67,7 +67,7 @@ export async function compose(activity: Activity): Promise<Logbook> {
   const ai = new GoogleGenAI({ apiKey, apiVersion: "v1beta", httpOptions: { timeout: 90_000 } });
   const models = [
     process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
-    process.env.GEMINI_FALLBACK_MODEL?.trim() || "gemini-2.5-flash",
+    process.env.GEMINI_FALLBACK_MODEL?.trim() || "gemini-3.5-flash",
   ];
   const contents: Content[] = [{ role: "user", parts: [{ text: render(activity) }] }];
 
