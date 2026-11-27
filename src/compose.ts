@@ -66,7 +66,7 @@ export async function compose(activity: Activity): Promise<Logbook> {
   if (!apiKey) throw new Error("GEMINI_API_KEY belum diisi di .env");
   const ai = new GoogleGenAI({ apiKey, apiVersion: "v1beta", httpOptions: { timeout: 90_000 } });
   const models = [
-    process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
+    process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     process.env.GEMINI_FALLBACK_MODEL?.trim() || "gemini-2.5-flash",
   ];
   const contents: Content[] = [{ role: "user", parts: [{ text: render(activity) }] }];
@@ -75,7 +75,8 @@ export async function compose(activity: Activity): Promise<Logbook> {
   const generate = async () => {
     let lastErr: unknown;
     for (const model of models) {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      const tries = model === models[0] ? 2 : 3;
+      for (let attempt = 0; attempt < tries; attempt++) {
         try {
           return await ai.models.generateContent({
             model,
@@ -92,8 +93,8 @@ export async function compose(activity: Activity): Promise<Logbook> {
           const status = (err as { status?: number }).status;
           const transient = status === undefined || status === 429 || status >= 500;
           if (!transient) throw err;
-          console.warn(`[gemini] ${model} gagal (${status ?? "timeout"}), percobaan ${attempt + 1}/3`);
-          await new Promise((r) => setTimeout(r, 15_000 * (attempt + 1)));
+          console.warn(`[gemini] ${model} sibuk (${status ?? "timeout"}), coba lagi ${attempt + 1}/${tries}`);
+          await new Promise((r) => setTimeout(r, 5_000 * (attempt + 1)));
         }
       }
     }
