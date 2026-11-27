@@ -28,7 +28,7 @@ function Register-MonevTask($Name, $Time, $NpmArgs) {
   Write-Host "Terjadwal: $Name  Senin-Jumat $Time  (npm $NpmArgs)"
 }
 
-Register-MonevTask "MonevAsk" $AskTime "run ask"
+if ($AskTime) { Register-MonevTask "MonevAsk" $AskTime "run ask" } else { Unregister-ScheduledTask -TaskName MonevAsk -Confirm:$false -ErrorAction SilentlyContinue; Write-Host "MonevAsk tidak dipasang (tanpa pertanyaan Telegram)" }
 Register-MonevTask "MonevAutofill" $FillTime "start"
 
 Write-Host "Folder: $ProjectDir"
