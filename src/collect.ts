@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.js";
+import { claudeCodePrompts } from "./claudecode.js";
 import { githubActivity } from "./github.js";
 import { telegramReplies } from "./telegram.js";
 
@@ -12,12 +13,13 @@ export interface Activity {
   notes: { file: string; title: string }[];
   manual: string;
   replies: string[];
+  claude: string[];
   slack: string[];
 }
 
 export function isEmpty(a: Activity): boolean {
   return !a.commits.length && !a.github.length && !a.notes.length && !a.manual.trim() &&
-    !a.replies.length && !a.slack.length;
+    !a.replies.length && !a.claude.length && !a.slack.length;
 }
 
 /** Repo di daftar, atau subfolder 1 tingkat yang berisi .git. */
@@ -123,6 +125,7 @@ export async function collect(date: string): Promise<Activity> {
     notes: changedNotes(date),
     manual: manualNote(date),
     replies: await telegramReplies(date).catch(() => []),
+    claude: claudeCodePrompts(date),
     slack: await slackMessages(date),
   };
 }

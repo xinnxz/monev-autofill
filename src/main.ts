@@ -29,7 +29,7 @@ async function main() {
   // 2. Kumpulkan aktivitas asli.
   const activity = await collect(date);
   console.log(`Aktivitas ${date}: ${activity.commits.length} commit, ${activity.github.length} PR/review, ` +
-    `${activity.notes.length} dokumen, ${activity.replies.length} balasan Telegram, ${activity.slack.length} pesan Slack, ` +
+    `${activity.notes.length} dokumen, ${activity.replies.length} balasan Telegram, ${activity.claude.length} pertanyaan Claude Code, ${activity.slack.length} pesan Slack, ` +
     `catatan manual ${activity.manual ? "ada" : "tidak ada"}.`);
   if (flag("--collect-only")) return console.log(JSON.stringify(activity, null, 2));
 

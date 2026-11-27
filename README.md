@@ -19,7 +19,7 @@ Agent yang menyiapkan **logbook harian MagangHub (monev)** setiap hari kerja. Is
   ├─ 1. Cek hari    → Sabtu/Minggu, OFF_DAYS, balasan "izin/sakit",
   │                   atau "Jadwal libur posisi" di portal → berhenti
   ├─ 2. Kumpulkan   → GitHub: commit, PR dibuka/di-merge, review, diskusi PR
-  │                   clone lokal (opsional), dokumen catatan yang berubah,
+  │                   clone lokal, dokumen catatan, pertanyaan ke Claude Code,
   │                   Slack (opsional), balasan Telegram, catatan/YYYY-MM-DD.md
   │                   (semua kosong → peringatan, TIDAK mengarang isi)
   ├─ 3. Susun       → Gemini Flash menulis 3 kolom (masing-masing ≥100 karakter)
@@ -49,6 +49,7 @@ Kamu: cek isi → "Tambahkan lokasi" → centang pernyataan → Simpan dan Kirim
 |---|---|---|
 | **GitHub** | Disarankan | Events API akunmu: commit yang di-push, PR dibuka/di-merge, approve/request changes, dan komentar diskusi PR pada tanggal itu. Tidak butuh clone lokal. |
 | **Balasan Telegram** | Disarankan | Jawabanmu atas pertanyaan jam 21.00. Untuk meeting, diskusi, belajar, WFO. |
+| **Claude Code** | Opsional | Pertanyaan yang kamu ketik ke Claude Code hari itu (riwayat lokal `~/.claude/projects`), hanya dari folder di `CLAUDE_CODE_PROJECTS`. Bagus untuk kolom *Pembelajaran* dan *Kendala*. Hanya pesanmu (bukan jawaban Claude), teks tempelan dibuang, dipotong 200 karakter, maksimal 15 per hari, dan **API key / token / password / email disamarkan** sebelum dikirim ke Gemini. Sesi yang memuat pola `CLAUDE_CODE_EXCLUDE` dibuang utuh. |
 | **Clone lokal** | Opsional | Commit yang belum di-push (`REPOS`, `GIT_AUTHOR`). |
 | **Dokumen** | Opsional | Judul file `.md` di `NOTES_DIRS` yang diubah hari itu. |
 | **Latar proyek** (`konteks.md`) | Disarankan | Ringkasan PRD/docs: peran, fitur, istilah, cara kerja tim. Hanya latar supaya tulisan nyambung, **tidak** dihitung sebagai aktivitas. |
@@ -177,6 +178,7 @@ Log ada di `logs\run.log`, draf di `drafts\`.
 - **Pertanyaan Telegram harus dibalas di hari yang sama.** Bot hanya membaca balasan bertanggal hari itu.
 - **Events API GitHub** bisa terlambat beberapa menit sampai jam, dan hanya menyimpan 300 event terakhir. Untuk pemakaian harian ini aman.
 - **Portal bisa berubah.** Kalau form berubah, jalankan `npm run inspect` lalu sesuaikan label di `src/portal.ts`.
+- **Privasi Claude Code.** Pertanyaanmu dikirim ke Gemini. Di tier gratis, Google bisa memakainya untuk perbaikan model. Izinkan hanya folder kerja, dan isi `CLAUDE_CODE_EXCLUDE` untuk topik pribadi.
 - **Isi tetap tanggung jawabmu.** Tinjau sebelum submit.
 - **Aturan program.** Cek apakah MagangHub melarang pengisian berbantuan alat. Agent ini tidak pernah submit sendiri.
 
@@ -187,6 +189,7 @@ src/
   config.ts    konfigurasi .env, tanggal WIB
   collect.ts   menggabungkan semua sumber
   github.ts    GitHub Events API: push → compare, PR, review, komentar
+  claudecode.ts riwayat Claude Code lokal: filter, redaksi rahasia
   telegram.ts  membaca balasan Telegram, deteksi "izin/sakit"
   compose.ts   Gemini → 3 kolom (JSON schema, cek ≥100 karakter, retry + model cadangan)
   portal.ts    Playwright: buka Chrome, isi Kehadiran + 3 kolom, berhenti

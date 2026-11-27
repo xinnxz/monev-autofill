@@ -50,6 +50,10 @@ function render(a: Activity): string {
   if (a.notes.length) parts.push("## Dokumen yang ditulis/diubah", ...a.notes.map((n) => `- ${n.title} (${n.file})`));
   if (a.slack.length) parts.push("## Pesan Slack", ...a.slack.map((s) => `- ${s}`));
   if (a.replies.length) parts.push("## Jawaban peserta di Telegram (\"hari ini ngapain?\")", ...a.replies.map((r) => `- ${r}`));
+  if (a.claude.length) parts.push(
+    "## Pertanyaan peserta ke asisten AI (Claude Code) hari itu",
+    "Ini topik yang sedang dipelajari atau sedang menjadi kendala, BUKAN bukti pekerjaan selesai. Pakai terutama untuk kolom pembelajaran dan kendala; jangan menyebut nama asisten AI-nya.",
+    ...a.claude.map((q) => `- ${q}`));
   if (a.manual.trim()) parts.push("## Catatan manual peserta", a.manual.trim());
   return parts.join("\n");
 }

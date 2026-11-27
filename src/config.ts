@@ -15,6 +15,10 @@ export const config = {
     token: process.env.GITHUB_TOKEN?.trim(),
     user: process.env.GITHUB_USER?.trim(),
   },
+  claudeCode: {
+    projects: list(process.env.CLAUDE_CODE_PROJECTS),
+    exclude: process.env.CLAUDE_CODE_EXCLUDE?.trim(),
+  },
   slack: {
     token: process.env.SLACK_USER_TOKEN?.trim(),
     userId: process.env.SLACK_USER_ID?.trim(),
