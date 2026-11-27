@@ -170,7 +170,7 @@ async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<vo
     console.log(`\n══════ Monev ${date} ══════\n`);
     console.log(`URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\nKENDALA\n${log.kendala}\n`);
     console.log(`Lokasi: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} (±${coords.accuracy} m)`);
-    const a = await ask(`\nKirim laporan ini${flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : ""}? [y = kirim / e = edit / n = batal] `);
+    const a = await ask(`\nKirim laporan ini${flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : ""}? [Enter/y = kirim · e = edit · n = batal] `);
     if (a === "e") {
       const txt = draftPath.replace(/\.json$/, ".txt");
       fs.writeFileSync(txt, `## URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\n## PEMBELAJARAN\n${log.pembelajaran}\n\n## KENDALA\n${log.kendala}\n`);
@@ -185,7 +185,7 @@ async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<vo
       if (short.length) console.log(`⚠️ Kurang dari 100 karakter: ${short.join(", ")}`);
       continue;
     }
-    if (a !== "y") {
+    if (a !== "y" && a !== "") {
       rl.close();
       console.log("Dibatalkan. Tidak ada yang dikirim.");
       if (auto) writeMarker("declined");

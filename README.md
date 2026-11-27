@@ -215,7 +215,7 @@ Agent dipicu saat **login**, **laptop dibuka kuncinya**, **Wi-Fi tersambung**, d
 - laporan hari itu belum dikirim. Form dibuka sekali; kalau belum dikirim, dibuka lagi 2 jam kemudian (`AUTO_REOPEN_HOURS`) dengan draf yang disusun ulang;
 - ada aktivitas. Kalau belum ada, dicek lagi nanti, dan peringatan dikirim sekali mulai jam 21.00.
 
-Saat terpicu, muncul **jendela terminal** berisi draf + lokasi dari Windows, lalu pertanyaan **"Kirim? [y/e/n]"**: `y` mengirim tanpa membuka Chrome, `e` membuka Notepad untuk mengedit, `n` batal (ditanya lagi 2 jam kemudian). Lokasi diambil dari *Windows Location* (Settings → Privacy & security → Location, termasuk "Let desktop apps access your location").
+Saat terpicu, muncul **jendela terminal** berisi draf + lokasi dari Windows, lalu pertanyaan **"Kirim? [Enter/y · e · n]"**: **Enter** atau `y` mengirim tanpa membuka Chrome, `e` membuka Notepad untuk mengedit, `n` batal (ditanya lagi 2 jam kemudian). Lokasi diambil dari *Windows Location* (Settings → Privacy & security → Location, termasuk "Let desktop apps access your location").
 
 Manual kapan saja: `npm run submit` (atau `npm run submit -- --dry` untuk mencoba semua langkah tanpa menekan Kirim; screenshot di `logs\`).
 
