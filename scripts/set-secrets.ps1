@@ -4,8 +4,12 @@
 param(
   [Parameter(Mandatory)][string]$Repo,
   # Token GitHub akun kerja (classic, scope repo). Kosongkan untuk memakai token gh yang sedang login.
-  [string]$ActivityToken = ""
+  [string]$ActivityToken = "",
+  # Kalau repo ada di akun gh lain (misal akun pribadi), sebutkan di sini.
+  # Token kerja diambil dulu dari akun yang sedang aktif, lalu gh pindah ke akun ini, lalu kembali.
+  [string]$RepoAccount = ""
 )
+$startAccount = (gh api user -q .login)
 
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $ProjectDir ".env"
@@ -27,6 +31,7 @@ function Set-Var($Name, $Value) {
 
 if (-not $ActivityToken) { $ActivityToken = $vals["GITHUB_TOKEN"] }
 if (-not $ActivityToken) { $ActivityToken = (gh auth token) }
+if ($RepoAccount) { gh auth switch -u $RepoAccount | Out-Null }
 
 Write-Host "Secrets:"
 Set-Secret "GEMINI_API_KEY" $vals["GEMINI_API_KEY"]
@@ -46,4 +51,5 @@ Set-Var "GEMINI_MODEL" $vals["GEMINI_MODEL"]
 Set-Var "GEMINI_FALLBACK_MODEL" $vals["GEMINI_FALLBACK_MODEL"]
 Set-Var "SLACK_USER_ID" $vals["SLACK_USER_ID"]
 
+if ($RepoAccount) { gh auth switch -u $startAccount | Out-Null }
 Write-Host "Selesai. Tes: gh workflow run monev-phone -R $Repo"
