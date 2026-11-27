@@ -17,6 +17,23 @@ Ada dua mode:
 | Sumber | GitHub, Slack, balasan Telegram, latar proyek | Semua, termasuk Claude Code & clone lokal |
 | Langkahmu | Buka link di HP → tempel 3 kolom → lokasi → centang → kirim (±30 detik) | Cek → lokasi → centang → kirim |
 
+## Mode pengingat (paling simpel, untuk semua jurusan)
+
+Untuk yang tidak pakai laptop/GitHub (misalnya perawat, admin, desain) dan hanya butuh **supaya tidak lupa**:
+
+- Bot Telegram mengingatkan **16.00, 19.00, 21.00 WIB** di hari kerja, makin lama makin tegas.
+- Tiap pesan punya tombol **📝 Buka form** dan **✅ Sudah**. Setelah tap **Sudah** (atau balas "sudah"), bot diam sampai besok.
+- Sabtu/Minggu dan tanggal di `OFF_DAYS` tidak ada pengingat.
+- Tidak butuh laptop, GitHub, maupun Gemini. Isi laporan tetap ditulis sendiri.
+
+Setup (±5 menit):
+1. Buat bot di **@BotFather**, tekan **Start** di bot itu, ambil chat id dari **@userinfobot**.
+2. **Fork** repo ini (atau *Use this template*).
+3. *Settings → Secrets and variables → Actions*: secrets `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`; variable `REMIND_ENABLED` = `true` (opsional `OFF_DAYS`).
+4. Tab **Actions** → aktifkan → *monev-remind* → **Run workflow** untuk tes.
+
+Di laptop juga bisa: `npm run remind`.
+
 ## Mode HP (tanpa laptop)
 
 ```
@@ -273,6 +290,7 @@ src/
   portal.ts    Playwright: buka Chrome, isi Kehadiran + 3 kolom, berhenti
   notify.ts    Telegram / ntfy
   ask.ts       pertanyaan jam 21.00 (mode laptop)
+  remind.ts    mode pengingat (16/19/21 WIB, tombol Sudah)
   phone.ts     mode HP: draf → 4 pesan Telegram (GitHub Actions)
   main.ts      alur jam 23.00
   login.ts     simpan sesi login

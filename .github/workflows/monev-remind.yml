@@ -1,0 +1,44 @@
+# Pengingat monev (tanpa laptop, tanpa GitHub/Gemini): bot Telegram mengingatkan
+# 16.00, 19.00, 21.00 WIB di hari kerja sampai kamu tap "✅ Sudah".
+# Aktifkan: Settings → Secrets and variables → Actions
+#   secrets  TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#   variable REMIND_ENABLED = true   (opsional: OFF_DAYS)
+name: monev-remind
+
+on:
+  schedule:
+    - cron: "0 9 * * 1-5"    # 16.00 WIB
+    - cron: "0 12 * * 1-5"   # 19.00 WIB
+    - cron: "0 14 * * 1-5"   # 21.00 WIB
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remind:
+    if: ${{ vars.REMIND_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      OFF_DAYS: ${{ vars.OFF_DAYS }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Kirim pengingat
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          case "$SCHEDULE" in
+            "0 12 * * 1-5") LEVEL=2 ;;
+            "0 14 * * 1-5") LEVEL=3 ;;
+            *) LEVEL=1 ;;
+          esac
+          npx tsx src/remind.ts --level "$LEVEL"
