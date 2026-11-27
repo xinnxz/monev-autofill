@@ -7,6 +7,7 @@
   "scripts": {
     "login": "tsx src/login.ts",
     "ask": "tsx src/ask.ts",
+    "phone": "tsx src/phone.ts",
     "inspect": "tsx src/inspect.ts",
     "collect": "tsx src/main.ts --collect-only",
     "draft": "tsx src/main.ts --draft-only",

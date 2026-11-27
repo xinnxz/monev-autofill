@@ -8,7 +8,67 @@ Agent yang menyiapkan **logbook harian MagangHub (monev)** setiap hari kerja. Is
 > Isi laporan sepenuhnya tanggung jawab peserta. Pastikan penggunaannya tidak melanggar ketentuan program dan perusahaan penempatanmu.
 > Mohon jangan memodifikasinya untuk submit otomatis, memalsukan lokasi, atau mengisi aktivitas yang tidak dilakukan. Itu termasuk pelanggaran yang bisa berujung dikeluarkan dari program.
 
-## Cara kerja
+Ada dua mode:
+
+| | **Mode HP** (disarankan) | **Mode laptop** |
+|---|---|---|
+| Jalan di | GitHub Actions (cloud), laptop boleh mati | Laptop (Task Scheduler) |
+| Hasil | 4 pesan Telegram: link form + 3 kolom siap salin | Chrome terbuka dengan form sudah terisi |
+| Sumber | GitHub, Slack, balasan Telegram, latar proyek | Semua, termasuk Claude Code & clone lokal |
+| Langkahmu | Buka link di HP → tempel 3 kolom → lokasi → centang → kirim (±30 detik) | Cek → lokasi → centang → kirim |
+
+## Mode HP (tanpa laptop)
+
+```
+21.00 WIB  GitHub Actions: kumpulkan aktivitas GitHub hari itu → Gemini → Telegram
+           📝 pesan 1: link form tanggal itu + langkah
+           📄 pesan 2–4: Uraian aktivitas / Pembelajaran / Kendala (tekan-tahan → Salin)
+           Tidak ada aktivitas? → bot minta kamu membalas dengan kegiatanmu
+22.30 WIB  Hanya kalau kamu membalas bot setelah 21.00: kirim versi baru dengan balasanmu
+           (balasan "izin" / "sakit" → tidak dibuatkan isi)
+```
+
+Kamu **tidak wajib** membalas bot. Kalau ada aktivitas GitHub, isinya tetap dikirim jam 21.00.
+
+### Setup Mode HP (sekali)
+
+1. **Fork** repo ini (atau gunakan repo milikmu sendiri). Disarankan repo **private**, walaupun isi laporan memang tidak pernah dicetak ke log.
+2. Buat **GitHub token** untuk akun yang dipakai kerja: github.com/settings/tokens → *Generate new token (classic)* → scope `repo` → kalau organisasi kantor memakai SSO, klik *Configure SSO → Authorize*.
+3. Di repo hasil fork: *Settings → Secrets and variables → Actions*.
+
+   **Secrets** (rahasia):
+
+   | Nama | Isi |
+   |---|---|
+   | `GEMINI_API_KEY` | API key Gemini |
+   | `TELEGRAM_BOT_TOKEN` | token bot dari @BotFather |
+   | `TELEGRAM_CHAT_ID` | chat id kamu |
+   | `ACTIVITY_GITHUB_TOKEN` | token dari langkah 2 |
+   | `PROJECT_CONTEXT` | isi `konteks.md` (opsional) |
+   | `SLACK_USER_TOKEN` | opsional |
+
+   **Variables** (tidak rahasia):
+
+   | Nama | Isi |
+   |---|---|
+   | `MONEV_ENABLED` | `true` |
+   | `ACTIVITY_GITHUB_USER` | username GitHub kerja |
+   | `ROLE` | posisi magang, misal `Software Engineer` |
+   | `OFF_DAYS` | tanggal libur/cuti, pisahkan `;` (opsional) |
+
+   Cara cepat dari laptop: jalankan sendiri script ini. Nilainya dibaca dari `.env` dan `konteks.md` lalu langsung dikirim ke GitHub, tanpa tampil di layar.
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\set-secrets.ps1 -Repo <user>/<repo> -ActivityToken <token dari langkah 2>
+   ```
+
+4. Tab **Actions** → aktifkan workflow → *monev-phone* → **Run workflow** untuk tes. Pesan harus masuk ke Telegram.
+
+Catatan: jadwal GitHub Actions bisa terlambat 5–30 menit di jam sibuk. Repo yang tidak ada aktivitas selama 60 hari akan dinonaktifkan jadwalnya oleh GitHub; aktifkan lagi dari tab Actions.
+
+## Mode laptop
+
+### Cara kerja
 
 ```
 21.00 Senin–Jumat ── Bot Telegram: "hari ini ngapain aja?"
@@ -194,11 +254,14 @@ src/
   compose.ts   Gemini → 3 kolom (JSON schema, cek ≥100 karakter, retry + model cadangan)
   portal.ts    Playwright: buka Chrome, isi Kehadiran + 3 kolom, berhenti
   notify.ts    Telegram / ntfy
-  ask.ts       pertanyaan jam 21.00
+  ask.ts       pertanyaan jam 21.00 (mode laptop)
+  phone.ts     mode HP: draf → 4 pesan Telegram (GitHub Actions)
   main.ts      alur jam 23.00
   login.ts     simpan sesi login
   inspect.ts   baca struktur form (read-only)
-scripts/register-task.ps1   jadwal Windows Task Scheduler
+scripts/register-task.ps1   jadwal Windows Task Scheduler (mode laptop)
+scripts/set-secrets.ps1     pasang secrets Mode HP ke GitHub
+.github/workflows/monev-phone.yml   jadwal Mode HP
 ```
 
 ## Untuk teman

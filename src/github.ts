@@ -35,7 +35,7 @@ async function api<T>(tok: string, path: string): Promise<T> {
       "X-GitHub-Api-Version": "2022-11-28",
     },
   });
-  if (!res.ok) throw new Error(`GitHub ${res.status} ${path}`);
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
   return (await res.json()) as T;
 }
 
@@ -126,8 +126,36 @@ export async function githubActivity(date: string): Promise<GithubActivity> {
           break;
       }
     } catch (err) {
-      console.warn(`[github] ${e.type} ${repo} dilewati: ${(err as Error).message}`);
+      console.warn(`[github] ${e.type} dilewati (${(err as Error).message.split(" ")[1] ?? "error"})`);
     }
+  }
+
+  // Events API tidak lengkap (push kadang tidak tercatat), jadi baca juga commit langsung
+  // dari PR milikmu yang aktif sekitar tanggal itu.
+  try {
+    const prev = new Date(`${date}T12:00:00+07:00`);
+    prev.setUTCDate(prev.getUTCDate() - 1);
+    const since = prev.toISOString().slice(0, 10);
+    const search = await api<{ items: { number: number; repository_url: string }[] }>(
+      tok, `/search/issues?q=${encodeURIComponent(`type:pr author:${user} updated:>=${since}`)}&per_page=20`);
+    for (const pr of search.items) {
+      const repo = pr.repository_url.split("/repos/")[1];
+      const commits = await api<{ sha: string; author: { login: string } | null; commit: { message: string; author: { date: string } } }[]>(
+        tok, `/repos/${repo}/pulls/${pr.number}/commits?per_page=100`);
+      for (const c of commits) {
+        if (seenSha.has(c.sha) || c.author?.login?.toLowerCase() !== user.toLowerCase()) continue;
+        if (wibDate(c.commit.author.date) !== date) continue;
+        const [subject, ...rest] = c.commit.message.split("\n");
+        if (/^Merge (branch|remote-tracking|pull request)/.test(subject)) continue;
+        seenSha.add(c.sha);
+        out.commits.push({
+          repo: repo.split("/")[1], sha: c.sha, subject,
+          body: rest.filter((l) => !/^[\w-]+-By:/i.test(l.trim())).join("\n").trim(),
+        });
+      }
+    }
+  } catch (err) {
+    console.warn(`[github] commit dari PR dilewati (${(err as Error).message.split(" ")[1] ?? "error"})`);
   }
 
   for (const [pr, comments] of reviewComments) {

@@ -1,0 +1,61 @@
+# Mode HP: setiap hari kerja, susun isi monev dari aktivitas GitHub lalu kirim ke Telegram.
+# Kamu tinggal buka link di HP, tempel 3 kolom, tambahkan lokasi, centang, kirim.
+# Setup: lihat README bagian "Mode HP".
+name: monev-phone
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5"   # 21.00 WIB, run utama
+    - cron: "30 15 * * 1-5"  # 22.30 WIB, susulan kalau kamu membalas bot
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Tanggal (YYYY-MM-DD), kosongkan untuk hari ini"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monev-phone
+  cancel-in-progress: false
+
+jobs:
+  send:
+    # Jangan jalan di fork yang belum diatur (tanpa secret Telegram).
+    if: ${{ vars.MONEV_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      GITHUB_TOKEN: ${{ secrets.ACTIVITY_GITHUB_TOKEN }}
+      GITHUB_USER: ${{ vars.ACTIVITY_GITHUB_USER }}
+      SLACK_USER_TOKEN: ${{ secrets.SLACK_USER_TOKEN }}
+      SLACK_USER_ID: ${{ vars.SLACK_USER_ID }}
+      ROLE: ${{ vars.ROLE }}
+      OFF_DAYS: ${{ vars.OFF_DAYS }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+      GEMINI_FALLBACK_MODEL: ${{ vars.GEMINI_FALLBACK_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Tulis latar proyek dari secret (tidak dicetak ke log)
+        env:
+          PROJECT_CONTEXT: ${{ secrets.PROJECT_CONTEXT }}
+        run: printf '%s' "$PROJECT_CONTEXT" > konteks.md
+      - name: Kirim ke Telegram
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          DATE_INPUT: ${{ inputs.date }}
+        run: |
+          ARGS=()
+          if [ "$SCHEDULE" = "30 15 * * 1-5" ]; then ARGS+=(--late); fi
+          if [[ "$DATE_INPUT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then ARGS+=(--date "$DATE_INPUT"); fi
+          npx tsx src/phone.ts "${ARGS[@]}"
