@@ -1,6 +1,7 @@
 import { chromium, type BrowserContext, type Locator, type Page } from "playwright";
 import { config } from "./config.js";
 import type { Logbook } from "./compose.js";
+import type { Coords } from "./location.js";
 
 /**
  * Batas tegas agent ini: mengisi Kehadiran dan tiga kolom teks, lalu BERHENTI.
@@ -15,13 +16,55 @@ const FIELDS: { key: keyof Logbook; label: string; order: number }[] = [
 
 export const monevUrl = (date: string) => config.monevUrl.replace("{date}", date);
 
-export async function openBrowser(): Promise<BrowserContext> {
+export async function openBrowser(opts: { headless?: boolean; coords?: Coords } = {}): Promise<BrowserContext> {
+  const origin = new URL(config.monevUrl.replace("{date}", "x")).origin;
   return chromium.launchPersistentContext(config.profileDir, {
     channel: config.browserChannel === "chromium" ? undefined : config.browserChannel,
-    headless: false,
-    viewport: null,
-    args: ["--start-maximized"],
+    headless: opts.headless ?? false,
+    viewport: opts.headless ? { width: 1280, height: 900 } : null,
+    args: opts.headless ? [] : ["--start-maximized"],
+    // Lokasi asli dari perangkat (Windows Location), diberikan hanya ke portal monev.
+    ...(opts.coords ? {
+      geolocation: { latitude: opts.coords.latitude, longitude: opts.coords.longitude, accuracy: opts.coords.accuracy },
+      permissions: [],
+    } : {}),
+  }).then(async (ctx) => {
+    if (opts.coords) await ctx.grantPermissions(["geolocation"], { origin });
+    return ctx;
   });
+}
+
+export type SubmitResult = { ok: boolean; status: string; screenshot?: string };
+
+/**
+ * Setelah fillForm: tambahkan lokasi, centang pernyataan, lalu Simpan dan Kirim.
+ * Dipanggil HANYA setelah peserta mengonfirmasi isi (y) di terminal.
+ * dry = semua langkah kecuali menekan tombol kirim, plus screenshot untuk dicek.
+ */
+export async function submitForm(page: Page, date: string, shotPath: string, dry = false): Promise<SubmitResult> {
+  const addLoc = page.getByText(/tambahkan lokasi/i).first();
+  if (await addLoc.count()) {
+    await addLoc.click();
+    await page.waitForTimeout(4000);
+  }
+  const statement = page.getByLabel(/menyatakan telah meninjau/i).first();
+  if (!(await statement.isChecked().catch(() => false))) await statement.check();
+
+  await page.screenshot({ path: shotPath, fullPage: true });
+  const sendBtn = page.getByRole("button", { name: /simpan dan kirim/i });
+  if (dry) {
+    return { ok: await sendBtn.isEnabled(), status: `dry-run (tombol kirim ${await sendBtn.isEnabled() ? "aktif" : "nonaktif"})`, screenshot: shotPath };
+  }
+
+  await sendBtn.click();
+  // Tunggu portal memproses lalu baca status dari kalender.
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(3000);
+  await page.goto(monevUrl(date).replace("view=edit", "view=detail"), { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const status = await dayStatus(page, date);
+  await page.screenshot({ path: shotPath, fullPage: true });
+  return { ok: /menunggu|disetujui/i.test(status), status: status || "tidak terbaca", screenshot: shotPath };
 }
 
 /** Cari textarea lewat label; kalau markup berubah, jatuh ke urutan textarea di halaman. */

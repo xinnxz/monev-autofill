@@ -1,11 +1,14 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
+import readline from "node:readline";
 import path from "node:path";
 import { collect, isEmpty } from "./collect.js";
 import { compose, LogbookSchema, type Logbook } from "./compose.js";
-import { config, todayWib, weekday } from "./config.js";
+import { config, ROOT, todayWib, weekday } from "./config.js";
+import { windowsLocation } from "./location.js";
 import { notify } from "./notify.js";
 import { dayOffReply } from "./telegram.js";
-import { fillForm, monevUrl, openBrowser, waitUntilClosed } from "./portal.js";
+import { fillForm, monevUrl, openBrowser, submitForm, waitUntilClosed } from "./portal.js";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -111,6 +114,8 @@ async function main() {
     `URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\nKENDALA\n${log.kendala}`;
   if (flag("--draft-only")) return console.log(preview);
 
+  if (flag("--confirm")) return confirmAndSubmit(log, draftPath);
+
   // 4. Isi form di Chrome, lalu serahkan ke peserta.
   const ctx = await openBrowser();
   const page = ctx.pages()[0] ?? (await ctx.newPage());
@@ -142,6 +147,80 @@ async function main() {
         `Tampilan portal mungkin berubah. Jalankan "npm run inspect". Teks siap salin:\n${monevUrl(date)}\n\n${preview}`);
       await waitUntilClosed(ctx, 30);
       break;
+  }
+}
+
+/** Tampilkan draf + lokasi, minta konfirmasi y/n/e, lalu kirim tanpa jendela Chrome. */
+async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<void> {
+  let log = initial;
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const ask = (q: string) => new Promise<string>((r) => rl.question(q, (a) => r(a.trim().toLowerCase())));
+
+  console.log("\nMengambil lokasi dari Windows...");
+  const coords = windowsLocation();
+  if (!coords) {
+    rl.close();
+    console.log("❌ Lokasi tidak tersedia. Aktifkan Settings → Privacy & security → Location " +
+      "(termasuk 'Let desktop apps access your location'), lalu jalankan lagi.");
+    if (auto) writeMarker("no-location");
+    return;
+  }
+
+  for (;;) {
+    console.log(`\n══════ Monev ${date} ══════\n`);
+    console.log(`URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\nKENDALA\n${log.kendala}\n`);
+    console.log(`Lokasi: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} (±${coords.accuracy} m)`);
+    const a = await ask(`\nKirim laporan ini${flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : ""}? [y = kirim / e = edit / n = batal] `);
+    if (a === "e") {
+      const txt = draftPath.replace(/\.json$/, ".txt");
+      fs.writeFileSync(txt, `## URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\n## PEMBELAJARAN\n${log.pembelajaran}\n\n## KENDALA\n${log.kendala}\n`);
+      console.log("Edit di Notepad, simpan, lalu tutup Notepad...");
+      execFileSync("notepad.exe", [txt]);
+      const parts = fs.readFileSync(txt, "utf8").split(/^## .+$/m).map((p) => p.trim()).filter(Boolean);
+      if (parts.length === 3) {
+        log = { uraian_aktivitas: parts[0], pembelajaran: parts[1], kendala: parts[2] };
+        fs.writeFileSync(draftPath, JSON.stringify(log, null, 2));
+      } else console.log("Format berubah (harus ada 3 judul ##), perubahan diabaikan.");
+      const short = Object.entries(log).filter(([, v]) => v.length < 100).map(([k]) => k);
+      if (short.length) console.log(`⚠️ Kurang dari 100 karakter: ${short.join(", ")}`);
+      continue;
+    }
+    if (a !== "y") {
+      rl.close();
+      console.log("Dibatalkan. Tidak ada yang dikirim.");
+      if (auto) writeMarker("declined");
+      return;
+    }
+    if (Object.values(log).some((v) => v.length < 100)) { console.log("Ada kolom < 100 karakter, edit dulu (e)."); continue; }
+    break;
+  }
+  rl.close();
+
+  console.log("Mengirim di latar belakang...");
+  const ctx = await openBrowser({ headless: true, coords });
+  try {
+    const page = ctx.pages()[0] ?? (await ctx.newPage());
+    const filled = await fillForm(page, date, log);
+    if (filled !== "filled") {
+      const msg: Record<string, string> = {
+        "already-filled": "Laporan tanggal ini sudah terkirim sebelumnya.",
+        holiday: "Portal menandai tanggal ini sebagai jadwal libur.",
+        "login-required": 'Sesi login habis. Jalankan "npm run login", lalu ulangi.',
+        "form-not-found": 'Form tidak ditemukan. Jalankan "npm run inspect".',
+      };
+      console.log(`ℹ️ ${msg[filled]}`);
+      if (auto) writeMarker(filled === "already-filled" ? "submitted" : filled);
+      return;
+    }
+    fs.mkdirSync(path.join(ROOT, "logs"), { recursive: true });
+    const shot = path.join(ROOT, "logs", `${date}${flag("--dry") ? "-dry" : ""}.png`);
+    const res = await submitForm(page, date, shot, flag("--dry"));
+    console.log(res.ok ? `✅ ${res.status}` : `❌ Belum berhasil: ${res.status}`);
+    console.log(`Screenshot: ${res.screenshot}`);
+    if (auto && res.ok && !flag("--dry")) writeMarker("submitted");
+    if (res.ok && !flag("--dry")) await notify(`✅ Monev ${date} terkirim`, `Status portal: ${res.status}`);
+  } finally {
+    await ctx.close();
   }
 }
 

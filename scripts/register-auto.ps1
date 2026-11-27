@@ -11,8 +11,10 @@ $TaskName = "MonevAuto"
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 New-Item -ItemType Directory -Force (Join-Path $ProjectDir "logs") | Out-Null
 
+# Jendela terminal terlihat: menampilkan draf dan bertanya "Kirim? [y/e/n]".
+# Kalau tidak perlu (sudah terkirim, belum jam 15, tanpa internet), jendela langsung tertutup sendiri.
 $action = New-ScheduledTaskAction -Execute "cmd.exe" `
-  -Argument "/c npm run auto >> logs\run.log 2>&1" -WorkingDirectory $ProjectDir
+  -Argument "/c title Monev MagangHub && npm run auto" -WorkingDirectory $ProjectDir
 
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $triggers = @()
@@ -56,4 +58,4 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $triggers `
 Unregister-ScheduledTask -TaskName MonevAsk, MonevAutofill -Confirm:$false -ErrorAction SilentlyContinue
 
 Write-Host "Terpasang: $TaskName (login, buka kunci, Wi-Fi tersambung, tiap 30 menit 15.00-24.00)"
-Write-Host "Folder: $ProjectDir   Log: logs\run.log"
+Write-Host "Folder: $ProjectDir"
