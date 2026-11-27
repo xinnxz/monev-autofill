@@ -12,7 +12,46 @@ const flag = (name: string) => args.includes(name);
 const dateIdx = args.indexOf("--date");
 const date = dateIdx >= 0 && args[dateIdx + 1] ? args[dateIdx + 1] : todayWib();
 
+/**
+ * Mode --auto (dipicu Task Scheduler saat login, buka kunci, Wi-Fi tersambung, dan tiap 30 menit):
+ * hanya jalan di jendela jam AUTO_START_HOUR–24.00 WIB, kalau ada internet, dan tidak mengganggu berulang:
+ * form dibuka sekali; kalau belum dikirim, dibuka lagi paling cepat AUTO_REOPEN_HOURS kemudian.
+ */
+const auto = flag("--auto");
+const markerPath = path.join(config.draftsDir, `${date}.status.json`);
+type Marker = { result: string; at: number };
+
+function readMarker(): Marker | null {
+  try { return JSON.parse(fs.readFileSync(markerPath, "utf8")); } catch { return null; }
+}
+function writeMarker(result: string) {
+  fs.mkdirSync(config.draftsDir, { recursive: true });
+  fs.writeFileSync(markerPath, JSON.stringify({ result, at: Date.now() }));
+}
+
+async function autoGate(): Promise<boolean> {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date()));
+  const start = Number(process.env.AUTO_START_HOUR ?? 15);
+  if (hour < start) { console.log(`[auto] ${hour}.00 < ${start}.00, belum waktunya.`); return false; }
+
+  const m = readMarker();
+  const reopenMs = Number(process.env.AUTO_REOPEN_HOURS ?? 2) * 3_600_000;
+  if (m && ["submitted", "holiday", "off", "notified-empty"].includes(m.result)) {
+    console.log(`[auto] hari ini sudah selesai (${m.result}).`); return false;
+  }
+  if (m && Date.now() - m.at < reopenMs) { console.log(`[auto] baru dijalankan, tunggu.`); return false; }
+
+  try {
+    await fetch("https://monev.maganghub.kemnaker.go.id", { method: "HEAD", signal: AbortSignal.timeout(8000) });
+  } catch {
+    console.log("[auto] belum ada internet, coba lagi di pemicu berikutnya."); return false;
+  }
+  return true;
+}
+
 async function main() {
+  if (auto && !(await autoGate())) return;
+
   if (flag("--test-notify")) {
     await notify("Tes monev-autofill", "Kalau pesan ini sampai, notifikasi sudah siap.");
     return;
@@ -22,6 +61,7 @@ async function main() {
   const wd = weekday(date);
   if ((wd === 0 || wd === 6) && !flag("--force")) return console.log(`${date} akhir pekan, dilewati.`);
   if (config.offDays.has(date)) {
+    if (auto) writeMarker("off");
     await notify(`Monev ${date}: hari libur/izin`, "Agent tidak mengisi apa pun. Kalau sakit/izin, pilih statusnya sendiri di portal.");
     return;
   }
@@ -35,6 +75,7 @@ async function main() {
 
   const off = dayOffReply(activity.replies);
   if (off) {
+    if (auto) writeMarker("off");
     await notify(`Monev ${date}: dicatat "${off}"`,
       `Agent tidak mengisi laporan hari ini. Jangan lupa pilih status Sakit/Izin dan lampirkan bukti di portal:\n${monevUrl(date)}`);
     return;
@@ -42,9 +83,16 @@ async function main() {
 
   fs.mkdirSync(config.draftsDir, { recursive: true });
   const draftPath = path.join(config.draftsDir, `${date}.json`);
-  const hasDraft = fs.existsSync(draftPath) && !flag("--redraft");
+  // Mode auto selalu menyusun ulang supaya aktivitas yang lebih sore ikut masuk.
+  const hasDraft = fs.existsSync(draftPath) && !flag("--redraft") && !auto;
 
   if (isEmpty(activity) && !hasDraft) {
+    if (auto) {
+      // Masih sore: mungkin nanti ada aktivitas. Peringatan dikirim sekali, mulai jam 21.00.
+      const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "2-digit", hourCycle: "h23", timeZone: "Asia/Jakarta" }).format(new Date()));
+      if (hour < 21) return console.log("[auto] belum ada aktivitas, cek lagi nanti.");
+      writeMarker("notified-empty");
+    }
     await notify(`⚠️ Monev ${date} belum terisi`,
       `Tidak ada aktivitas tercatat (GitHub, dokumen, Slack, balasan Telegram). Agent tidak mengarang isi.\n` +
       `Balas bot ini dengan kegiatanmu hari ini lalu jalankan "npm start" di laptop, atau isi langsung:\n${monevUrl(date)}`);
@@ -67,6 +115,7 @@ async function main() {
   const ctx = await openBrowser();
   const page = ctx.pages()[0] ?? (await ctx.newPage());
   const result = await fillForm(page, date, log);
+  if (auto) writeMarker(result === "already-filled" ? "submitted" : result);
 
   switch (result) {
     case "filled":

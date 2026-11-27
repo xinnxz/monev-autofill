@@ -12,6 +12,7 @@
     "collect": "tsx src/main.ts --collect-only",
     "draft": "tsx src/main.ts --draft-only",
     "start": "tsx src/main.ts",
+    "auto": "tsx src/main.ts --auto",
     "test:notify": "tsx src/main.ts --test-notify",
     "typecheck": "tsc --noEmit"
   },

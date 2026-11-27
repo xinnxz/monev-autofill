@@ -203,7 +203,20 @@ npm run draft -- --redraft
 
 Lihat draf yang disusun Gemini.
 
-**Pasang jadwal (21.00 tanya, 23.00 isi):**
+**Pasang jadwal otomatis (disarankan, tanpa jam tetap):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scriptsegister-auto.ps1
+```
+
+Agent dipicu saat **login**, **laptop dibuka kuncinya**, **Wi-Fi tersambung**, dan **tiap 30 menit**. Ia hanya benar-benar jalan kalau:
+- hari kerja, sudah lewat jam 15.00 (ubah dengan `AUTO_START_HOUR` di `.env`), dan ada internet;
+- laporan hari itu belum dikirim. Form dibuka sekali; kalau belum dikirim, dibuka lagi 2 jam kemudian (`AUTO_REOPEN_HOURS`) dengan draf yang disusun ulang;
+- ada aktivitas. Kalau belum ada, dicek lagi nanti, dan peringatan dikirim sekali mulai jam 21.00.
+
+Cocok untuk WFH dan jam kerja yang tidak tentu. Status harian ada di `drafts\YYYY-MM-DD.status.json`.
+
+**Atau jadwal jam tetap (21.00 tanya, 23.00 isi):**
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\register-task.ps1
