@@ -1,4 +1,7 @@
-import { execFileSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
 
 export interface Coords { latitude: number; longitude: number; accuracy: number }
 
@@ -6,7 +9,7 @@ export interface Coords { latitude: number; longitude: number; accuracy: number 
  * Lokasi asli perangkat dari Windows Location Service (Wi-Fi/GPS).
  * Butuh: Settings → Privacy & security → Location → aktif, termasuk "Let desktop apps access your location".
  */
-export function windowsLocation(timeoutSec = 20): Coords | null {
+export async function windowsLocation(timeoutSec = 20): Promise<Coords | null> {
   const ps = `
 Add-Type -AssemblyName System.Device
 $w = New-Object System.Device.Location.GeoCoordinateWatcher([System.Device.Location.GeoPositionAccuracy]::High)
@@ -19,9 +22,10 @@ elseif ($c.IsUnknown) { '{"error":"unknown"}' }
 else { $ic = [Globalization.CultureInfo]::InvariantCulture; '{"latitude":' + $c.Latitude.ToString($ic) + ',"longitude":' + $c.Longitude.ToString($ic) + ',"accuracy":' + [math]::Round($c.HorizontalAccuracy).ToString($ic) + '}' }
 $w.Stop()`;
   try {
-    const out = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], {
+    const { stdout } = await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], {
       encoding: "utf8", timeout: (timeoutSec + 15) * 1000,
-    }).trim().split("\n").pop()!;
+    });
+    const out = stdout.trim().split("\n").pop()!;
     const json = JSON.parse(out);
     return json.error ? null : json;
   } catch {

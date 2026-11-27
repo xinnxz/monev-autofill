@@ -53,11 +53,15 @@ async function tg<T>(method: string, body: unknown): Promise<T> {
 
 export const telegramReady = () => !!(config.telegram.token && config.telegram.chatId);
 
-/** Kirim draf dengan tombol ✅ Kirim / ❌ Batal. Mengembalikan id pesan untuk diperbarui nanti. */
+/** Escape teks untuk parse_mode HTML Telegram. */
+export const htmlEscape = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/** Kirim draf (HTML) dengan tombol ✅ Kirim / ❌ Batal. Mengembalikan id pesan untuk diperbarui nanti. */
 export async function sendConfirm(text: string, nonce: string): Promise<number> {
   const msg = await tg<{ message_id: number }>("sendMessage", {
     chat_id: config.telegram.chatId,
     text,
+    parse_mode: "HTML",
     disable_web_page_preview: true,
     reply_markup: {
       inline_keyboard: [[

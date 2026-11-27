@@ -61,21 +61,28 @@ function render(a: Activity): string {
 const tooShort = (l: Logbook) =>
   Object.entries(l).filter(([, v]) => v.trim().length < MIN_CHARS).map(([k]) => k);
 
+/** Pesan progres (dipakai spinner di terminal). */
+export let onStatus: (s: string) => void = (s) => console.warn(`[gemini] ${s}`);
+export const setStatusHandler = (fn: (s: string) => void) => { onStatus = fn; };
+
 export async function compose(activity: Activity): Promise<Logbook> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("GEMINI_API_KEY belum diisi di .env");
   const ai = new GoogleGenAI({ apiKey, apiVersion: "v1beta", httpOptions: { timeout: 90_000 } });
-  const models = [
+  // Urutan model: utama → cadangan → lite (paling jarang sibuk). Duplikat dibuang.
+  const models = [...new Set([
     process.env.GEMINI_MODEL?.trim() || "gemini-2.5-flash",
     process.env.GEMINI_FALLBACK_MODEL?.trim() || "gemini-3.5-flash",
-  ];
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+  ])];
   const contents: Content[] = [{ role: "user", parts: [{ text: render(activity) }] }];
 
   /** Server sibuk (429/503/timeout) → coba lagi dengan jeda, lalu pindah ke model cadangan. */
   const generate = async () => {
     let lastErr: unknown;
     for (const model of models) {
-      const tries = model === models[0] ? 2 : 3;
+      const tries = 2;
       for (let attempt = 0; attempt < tries; attempt++) {
         try {
           return await ai.models.generateContent({
@@ -93,7 +100,7 @@ export async function compose(activity: Activity): Promise<Logbook> {
           const status = (err as { status?: number }).status;
           const transient = status === undefined || status === 429 || status >= 500;
           if (!transient) throw err;
-          console.warn(`[gemini] ${model} sibuk (${status ?? "timeout"}), coba lagi ${attempt + 1}/${tries}`);
+          onStatus(`Gemini ${model} sibuk (${status ?? "timeout"}), percobaan ${attempt + 1}/${tries}`);
           await new Promise((r) => setTimeout(r, 5_000 * (attempt + 1)));
         }
       }

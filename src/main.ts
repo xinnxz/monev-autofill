@@ -3,11 +3,12 @@ import fs from "node:fs";
 import readline from "node:readline";
 import path from "node:path";
 import { collect, isEmpty } from "./collect.js";
-import { compose, LogbookSchema, type Logbook } from "./compose.js";
+import { compose, LogbookSchema, setStatusHandler, type Logbook } from "./compose.js";
 import { config, ROOT, todayWib, weekday } from "./config.js";
 import { windowsLocation } from "./location.js";
+import * as ui from "./ui.js";
 import { notify } from "./notify.js";
-import { closeConfirm, dayOffReply, sendConfirm, telegramReady, waitConfirm } from "./telegram.js";
+import { closeConfirm, dayOffReply, htmlEscape, sendConfirm, telegramReady, waitConfirm } from "./telegram.js";
 import { fillForm, monevUrl, openBrowser, submitForm, waitUntilClosed } from "./portal.js";
 
 const args = process.argv.slice(2);
@@ -54,6 +55,8 @@ async function autoGate(): Promise<boolean> {
 
 async function main() {
   if (auto && !(await autoGate())) return;
+
+  if (flag("--confirm")) ui.banner(date);
 
   if (flag("--test-notify")) {
     await notify("Tes monev-autofill", "Kalau pesan ini sampai, notifikasi sudah siap.");
@@ -107,7 +110,16 @@ async function main() {
   if (hasDraft) {
     log = LogbookSchema.parse(JSON.parse(fs.readFileSync(draftPath, "utf8")));
   } else {
-    log = await compose(activity);
+    const spin = ui.spinner(`Menyusun laporan dari ${activity.commits.length + activity.github.length} aktivitas GitHub, ` +
+      `${activity.claude.length} pertanyaan Claude Code, ${activity.notes.length} dokumen`);
+    setStatusHandler((t) => spin.update(t));
+    try {
+      log = await compose(activity);
+      spin.ok("Draf tersusun");
+    } catch (err) {
+      spin.fail("Gagal menyusun draf");
+      throw err;
+    }
     fs.writeFileSync(draftPath, JSON.stringify(log, null, 2));
   }
   const preview =
@@ -159,90 +171,102 @@ async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<vo
     try { rl.question(q, (a) => r(a.trim().toLowerCase())); } catch { /* tunggu Telegram */ }
   });
 
-  console.log("\nMengambil lokasi dari Windows...");
-  const coords = windowsLocation();
+  const locSpin = ui.spinner("Mengunci lokasi dari Windows Location");
+  const coords = await windowsLocation();
   if (!coords) {
-    rl.close();
-    console.log("❌ Lokasi tidak tersedia. Aktifkan Settings → Privacy & security → Location " +
+    locSpin.fail("Lokasi tidak tersedia. Aktifkan Settings → Privacy & security → Location " +
       "(termasuk 'Let desktop apps access your location'), lalu jalankan lagi.");
+    rl.close();
     if (auto) writeMarker("no-location");
     return;
   }
+  locSpin.ok(`Lokasi terkunci  ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}  (±${coords.accuracy} m)`);
 
   for (;;) {
-    console.log(`\n══════ Monev ${date} ══════\n`);
-    console.log(`URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\nKENDALA\n${log.kendala}\n`);
-    console.log(`Lokasi: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} (±${coords.accuracy} m)`);
+    console.log();
+    ui.box(`URAIAN AKTIVITAS · ${log.uraian_aktivitas.length} karakter`, log.uraian_aktivitas);
+    ui.box(`PEMBELAJARAN · ${log.pembelajaran.length} karakter`, log.pembelajaran);
+    ui.box(`KENDALA · ${log.kendala.length} karakter`, log.kendala);
     // Konfirmasi dari terminal ATAU tombol Telegram, mana yang lebih dulu.
     const dryTag = flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : "";
     const nonce = Math.random().toString(36).slice(2, 10);
     const stop = new AbortController();
     let tgMsg: number | null = null;
     if (telegramReady()) {
+      const block = (title: string, body: string) =>
+        `<b>▌${title}</b>  <code>${body.length} char</code>\n<pre>${htmlEscape(body)}</pre>`;
       tgMsg = await sendConfirm(
-        `📝 Monev ${date}${dryTag}\n\nURAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\n` +
-        `KENDALA\n${log.kendala}\n\nLokasi laptop: ±${coords.accuracy} m\nKirim laporan ini?`, nonce,
+        `<code>┌─[ MONEV · ${date} ]${htmlEscape(dryTag)}</code>\n` +
+        `<code>│ status : menunggu konfirmasi</code>\n` +
+        `<code>│ lokasi : terkunci (±${coords.accuracy} m)</code>\n` +
+        `<code>└─[ 3 kolom siap ]</code>\n\n` +
+        `${block("URAIAN AKTIVITAS", log.uraian_aktivitas)}\n\n` +
+        `${block("PEMBELAJARAN", log.pembelajaran)}\n\n` +
+        `${block("KENDALA", log.kendala)}\n\n` +
+        `<code>&gt;_ kirim laporan ini?</code>`, nonce,
       ).catch(() => null);
     }
     const viaTg = tgMsg !== null
       ? waitConfirm(nonce, stop.signal).then((r) => (r === "send" ? "y" : r === "cancel" ? "n" : null))
       : new Promise<null>(() => {});
     const a = (await Promise.race([
-      ask(`\nKirim laporan ini${dryTag}? [Enter/y = kirim · e = edit · n = batal${tgMsg !== null ? " · atau tap tombol di Telegram" : ""}] `),
+      ask(ui.prompt(`Kirim laporan ini${dryTag}? [Enter/y kirim · e edit · n batal${tgMsg !== null ? " · atau tombol Telegram" : ""}]`)),
       viaTg,
     ])) ?? "n";
     stop.abort();
     if (tgMsg !== null) {
-      const label = a === "e" ? "✏️ Diedit di laptop, draf baru menyusul." :
-        a === "y" || a === "" ? `⏳ Mengirim Monev ${date}...` : `❌ Monev ${date} dibatalkan.`;
+      const label = a === "e" ? `[~] Monev ${date}: diedit di laptop, draf baru menyusul.` :
+        a === "y" || a === "" ? `[*] Monev ${date}: mengirim ke portal...` : `[x] Monev ${date}: dibatalkan.`;
       await closeConfirm(tgMsg, label);
     }
     if (a === "e") {
       const txt = draftPath.replace(/\.json$/, ".txt");
       fs.writeFileSync(txt, `## URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\n## PEMBELAJARAN\n${log.pembelajaran}\n\n## KENDALA\n${log.kendala}\n`);
-      console.log("Edit di Notepad, simpan, lalu tutup Notepad...");
+      ui.log.info("Edit di Notepad, simpan, lalu tutup Notepad...");
       execFileSync("notepad.exe", [txt]);
       const parts = fs.readFileSync(txt, "utf8").split(/^## .+$/m).map((p) => p.trim()).filter(Boolean);
       if (parts.length === 3) {
         log = { uraian_aktivitas: parts[0], pembelajaran: parts[1], kendala: parts[2] };
         fs.writeFileSync(draftPath, JSON.stringify(log, null, 2));
-      } else console.log("Format berubah (harus ada 3 judul ##), perubahan diabaikan.");
+      } else ui.log.warn("Format berubah (harus ada 3 judul ##), perubahan diabaikan.");
       const short = Object.entries(log).filter(([, v]) => v.length < 100).map(([k]) => k);
-      if (short.length) console.log(`⚠️ Kurang dari 100 karakter: ${short.join(", ")}`);
+      if (short.length) ui.log.warn(`Kurang dari 100 karakter: ${short.join(", ")}`);
       continue;
     }
     if (a !== "y" && a !== "") {
       rl.close();
-      console.log("Dibatalkan. Tidak ada yang dikirim.");
+      ui.log.warn("Dibatalkan. Tidak ada yang dikirim.");
       if (auto) writeMarker("declined");
       return;
     }
-    if (Object.values(log).some((v) => v.length < 100)) { console.log("Ada kolom < 100 karakter, edit dulu (e)."); continue; }
+    if (Object.values(log).some((v) => v.length < 100)) { ui.log.warn("Ada kolom < 100 karakter, edit dulu (e)."); continue; }
     break;
   }
   rl.close();
 
-  console.log("Mengirim di latar belakang...");
+  const sendSpin = ui.spinner("Membuka sesi portal (headless) dan mengisi form");
   const ctx = await openBrowser({ headless: true, coords });
   try {
     const page = ctx.pages()[0] ?? (await ctx.newPage());
     const filled = await fillForm(page, date, log);
     if (filled !== "filled") {
+      sendSpin.stop();
       const msg: Record<string, string> = {
         "already-filled": "Laporan tanggal ini sudah terkirim sebelumnya.",
         holiday: "Portal menandai tanggal ini sebagai jadwal libur.",
         "login-required": 'Sesi login habis. Jalankan "npm run login", lalu ulangi.',
         "form-not-found": 'Form tidak ditemukan. Jalankan "npm run inspect".',
       };
-      console.log(`ℹ️ ${msg[filled]}`);
+      ui.log.warn(msg[filled]);
       if (auto) writeMarker(filled === "already-filled" ? "submitted" : filled);
       return;
     }
     fs.mkdirSync(path.join(ROOT, "logs"), { recursive: true });
     const shot = path.join(ROOT, "logs", `${date}${flag("--dry") ? "-dry" : ""}.png`);
+    sendSpin.update("Menambahkan lokasi, mencentang pernyataan, mengirim");
     const res = await submitForm(page, date, shot, flag("--dry"));
-    console.log(res.ok ? `✅ ${res.status}` : `❌ Belum berhasil: ${res.status}`);
-    console.log(`Screenshot: ${res.screenshot}`);
+    if (res.ok) sendSpin.ok(`Status portal: ${res.status}`); else sendSpin.fail(`Belum berhasil: ${res.status}`);
+    ui.log.info(`Bukti: ${res.screenshot}`);
     if (auto && res.ok && !flag("--dry")) writeMarker("submitted");
     if (res.ok && !flag("--dry")) await notify(`✅ Monev ${date} terkirim`, `Status portal: ${res.status}`);
   } finally {
