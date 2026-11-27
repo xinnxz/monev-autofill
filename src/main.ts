@@ -7,7 +7,7 @@ import { compose, LogbookSchema, type Logbook } from "./compose.js";
 import { config, ROOT, todayWib, weekday } from "./config.js";
 import { windowsLocation } from "./location.js";
 import { notify } from "./notify.js";
-import { dayOffReply } from "./telegram.js";
+import { closeConfirm, dayOffReply, sendConfirm, telegramReady, waitConfirm } from "./telegram.js";
 import { fillForm, monevUrl, openBrowser, submitForm, waitUntilClosed } from "./portal.js";
 
 const args = process.argv.slice(2);
@@ -154,7 +154,10 @@ async function main() {
 async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<void> {
   let log = initial;
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const ask = (q: string) => new Promise<string>((r) => rl.question(q, (a) => r(a.trim().toLowerCase())));
+  // Kalau tidak ada terminal (input tertutup), pertanyaan terminal diam saja dan konfirmasi lewat Telegram.
+  const ask = (q: string) => new Promise<string>((r) => {
+    try { rl.question(q, (a) => r(a.trim().toLowerCase())); } catch { /* tunggu Telegram */ }
+  });
 
   console.log("\nMengambil lokasi dari Windows...");
   const coords = windowsLocation();
@@ -170,7 +173,30 @@ async function confirmAndSubmit(initial: Logbook, draftPath: string): Promise<vo
     console.log(`\n══════ Monev ${date} ══════\n`);
     console.log(`URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\nKENDALA\n${log.kendala}\n`);
     console.log(`Lokasi: ${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)} (±${coords.accuracy} m)`);
-    const a = await ask(`\nKirim laporan ini${flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : ""}? [Enter/y = kirim · e = edit · n = batal] `);
+    // Konfirmasi dari terminal ATAU tombol Telegram, mana yang lebih dulu.
+    const dryTag = flag("--dry") ? " (DRY-RUN, tidak benar-benar dikirim)" : "";
+    const nonce = Math.random().toString(36).slice(2, 10);
+    const stop = new AbortController();
+    let tgMsg: number | null = null;
+    if (telegramReady()) {
+      tgMsg = await sendConfirm(
+        `📝 Monev ${date}${dryTag}\n\nURAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\nPEMBELAJARAN\n${log.pembelajaran}\n\n` +
+        `KENDALA\n${log.kendala}\n\nLokasi laptop: ±${coords.accuracy} m\nKirim laporan ini?`, nonce,
+      ).catch(() => null);
+    }
+    const viaTg = tgMsg !== null
+      ? waitConfirm(nonce, stop.signal).then((r) => (r === "send" ? "y" : r === "cancel" ? "n" : null))
+      : new Promise<null>(() => {});
+    const a = (await Promise.race([
+      ask(`\nKirim laporan ini${dryTag}? [Enter/y = kirim · e = edit · n = batal${tgMsg !== null ? " · atau tap tombol di Telegram" : ""}] `),
+      viaTg,
+    ])) ?? "n";
+    stop.abort();
+    if (tgMsg !== null) {
+      const label = a === "e" ? "✏️ Diedit di laptop, draf baru menyusul." :
+        a === "y" || a === "" ? `⏳ Mengirim Monev ${date}...` : `❌ Monev ${date} dibatalkan.`;
+      await closeConfirm(tgMsg, label);
+    }
     if (a === "e") {
       const txt = draftPath.replace(/\.json$/, ".txt");
       fs.writeFileSync(txt, `## URAIAN AKTIVITAS\n${log.uraian_aktivitas}\n\n## PEMBELAJARAN\n${log.pembelajaran}\n\n## KENDALA\n${log.kendala}\n`);
