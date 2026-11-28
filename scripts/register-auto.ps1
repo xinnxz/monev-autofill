@@ -11,10 +11,10 @@ $TaskName = "MonevAuto"
 $ProjectDir = Split-Path -Parent $PSScriptRoot
 New-Item -ItemType Directory -Force (Join-Path $ProjectDir "logs") | Out-Null
 
-# Jendela terminal terlihat: menampilkan draf dan bertanya "Kirim? [y/e/n]".
-# Kalau tidak perlu (sudah terkirim, belum jam 15, tanpa internet), jendela langsung tertutup sendiri.
-$action = New-ScheduledTaskAction -Execute "cmd.exe" `
-  -Argument "/c title Monev MagangHub && npm run auto" -WorkingDirectory $ProjectDir
+# Peluncur tersembunyi: cek diam-diam dulu, jendela konfirmasi hanya muncul kalau memang perlu
+# (hari kerja, sudah jam 15, ada internet, ada aktivitas, dan belum dikirim/dibatalkan hari itu).
+$action = New-ScheduledTaskAction -Execute "wscript.exe" `
+  -Argument "`"$ProjectDir\scripts\auto-launcher.vbs`"" -WorkingDirectory $ProjectDir
 
 $user = "$env:USERDOMAIN\$env:USERNAME"
 $triggers = @()

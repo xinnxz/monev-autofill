@@ -40,7 +40,8 @@ async function autoGate(): Promise<boolean> {
 
   const m = readMarker();
   const reopenMs = Number(process.env.AUTO_REOPEN_HOURS ?? 2) * 3_600_000;
-  if (m && ["submitted", "holiday", "off", "notified-empty"].includes(m.result)) {
+  // Setelah dikirim atau dibatalkan, jendela tidak muncul lagi hari itu.
+  if (m && ["submitted", "declined", "holiday", "off", "notified-empty"].includes(m.result)) {
     console.log(`[auto] hari ini sudah selesai (${m.result}).`); return false;
   }
   if (m && Date.now() - m.at < reopenMs) { console.log(`[auto] baru dijalankan, tunggu.`); return false; }
@@ -53,8 +54,25 @@ async function autoGate(): Promise<boolean> {
   return true;
 }
 
+/**
+ * --gate-only: dipanggil diam-diam oleh peluncur tersembunyi. Keluar dengan kode 10 kalau jendela
+ * konfirmasi perlu dibuka (hari kerja, jamnya, ada internet, belum selesai, ada aktivitas), selain itu 0.
+ */
+async function gateOnly(): Promise<number> {
+  const wd = weekday(date);
+  if (wd === 0 || wd === 6 || config.offDays.has(date)) return 0;
+  if (!(await autoGate())) return 0;
+  const activity = await collect(date);
+  if (dayOffReply(activity.replies)) return 0;
+  if (isEmpty(activity)) return 0;
+  return 10;
+}
+
 async function main() {
+  if (flag("--gate-only")) { process.exitCode = await gateOnly(); return; }
   if (auto && !(await autoGate())) return;
+  // Tandai sudah dimunculkan supaya pemicu berikutnya tidak membuka jendela lagi dalam 2 jam.
+  if (auto) writeMarker("prompted");
 
   if (flag("--confirm")) ui.banner(date);
 
